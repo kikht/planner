@@ -1,0 +1,32 @@
+[
+{
+    "id": 1,
+    "name": "Task 1",
+    "end": "27 May",
+    "size": 10,
+    "done": 2,
+    "plan": 1,
+    "mode": "workdays",
+    "today": true
+},
+{
+    "id": 2,
+    "name": "Task 2",
+    "end": "27 May",
+    "size": 10,
+    "done": 4,
+    "plan": 2,
+    "mode": "everyday",
+    "today": true
+},
+{
+    "id": 3,
+    "name": "Task 3",
+    "end": "27 May",
+    "size": 10,
+    "done": 2,
+    "plan": 1,
+    "mode": "holidays",
+    "today": false
+}
+]
