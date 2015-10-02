@@ -123,14 +123,22 @@ webix.ui({
                             view: "button", 
                             value: "Отмена",
                             height: 50,
-                            click:"cancel()" 
+                            click: function() {
+                                $$("listView").unselect();
+                                $$("views").back();
+                            }
                         },
                         { 
                             view: "button", 
                             value: "Сохранить", 
                             type: "form", 
                             height: 50,
-                            click:"save()" 
+                            click: function() {
+                                $$("formView").save();
+                                $$("listView").unselect();
+                                //TODO: reload data
+                                $$("views").back();
+                            }
                         }
                     ]
                 },
@@ -146,30 +154,6 @@ webix.ui({
  - updating data after form saving
 */
 $$('formView').bind($$('listView'));
-
-/*
-    opening form on item selection
-*/
-//$$("listView").attachEvent("onItemClick",function(id){
-//    $$('formView').show();
-//});
-
-/*
-    data saving and opening previous view
- */
-function save(){
-    $$("formView").save();
-    $$("listView").unselect();
-    //TODO: reload data
-    $$("views").back();
-}
-/*
-    cancel editing
-*/
-function cancel() {
-    $$("listView").unselect();
-    $$("views").back();
-}
 webix.history.track("views", "listView");
 
 </script>
