@@ -16,10 +16,14 @@
     padding-top: 15px;
 }
 
+.endDate {
+    float: right;
+    padding-top: 15px;
+}
+
 .detailsButton {
     float: right;
-    height: 60px;
-    padding-top: 10px;
+    padding-top: 12px;
 }
 </style>
 </head>
@@ -49,28 +53,87 @@ webix.ui({
                     view: "icon",
                     icon: "angle-right",
                     width: 50,
-                    click: function() {
+                    click: function(id, e) {
+                        var item_id = $$("listView").locate(e);
+                        $$("listView").select(item_id);
                         $$('formView').show();
                     }
                 }
             },
-            template: "<div class='todayCheckbox'>{common.today()}</div><div class='taskName'>#name#</div><div class='detailsButton'>{common.details()}</div>",
+            template: "<div class='todayCheckbox'>{common.today()}</div><div class='taskName'>#name#</div><div class='detailsButton'>{common.details()}</div><div class='endDate'>#end#</div>",
             type: {
                 height: 65
             }
         },
         {
-            id:"formView",
-            view:"form",
-            scroll:false,
-            elements:[
-                { view:"text", label:"Rank",  name:"rank", labelWidth: 70},
-                { view:"text", label: "Title", name:"title" ,  placeholder:"Book title", labelWidth: 70},
-                { view:"text", label: "Year",  name:"year",  placeholder:"Year", labelWidth: 70},
-                { margin:5, cols:[
-                    { view:"button", value:"Cancel" , click:"cancel()" },
-                    { view:"button", value:"Save", type:"form", click:"save()" }
-                ]},
+            id: "formView",
+            view: "form",
+            scroll: false,
+            elements: [ 
+                { 
+                    view: "text", 
+                    label: "Название", 
+                    labelWidth: 120,
+                    labelAlign: "right",
+                    name: "name",
+                },
+                {
+                    view: "counter",
+                    label: "Объем работы",
+                    labelWidth: 120,
+                    labelAlign: "right",
+                    name: "size",
+                    step: 1,
+                    min: 1,
+                },
+                {
+                    view: "counter",
+                    label: "План на день",
+                    labelWidth: 120,
+                    labelAlign: "right",
+                    name: "plan",
+                    step: 1,
+                    min: 1,
+                },
+                {
+                    view: "counter",
+                    label: "Готовность",
+                    labelWidth: 120,
+                    labelAlign: "right",
+                    name: "done",
+                    step: 1,
+                    min: 0,
+                },
+                {
+                    view: "segmented",
+                    label: "Режим работы",
+                    labelWidth: 120,
+                    labelAlign: "right",
+                    options: [
+                        { id: "workdays", value: "Рабочие" },
+                        { id: "holidays", value: "Выходные" },
+                        { id: "everyday", value: "Каждый день" },
+                    ],
+                    name: "mode",
+                },
+                { 
+                    margin: 5, 
+                    cols: [
+                        { 
+                            view: "button", 
+                            value: "Отмена",
+                            height: 50,
+                            click:"cancel()" 
+                        },
+                        { 
+                            view: "button", 
+                            value: "Сохранить", 
+                            type: "form", 
+                            height: 50,
+                            click:"save()" 
+                        }
+                    ]
+                },
                 {}
             ]
         },
@@ -96,12 +159,15 @@ $$('formView').bind($$('listView'));
  */
 function save(){
     $$("formView").save();
+    $$("listView").unselect();
+    //TODO: reload data
     $$("views").back();
 }
 /*
     cancel editing
 */
-function cancel(){
+function cancel() {
+    $$("listView").unselect();
     $$("views").back();
 }
 webix.history.track("views", "listView");
