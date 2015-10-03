@@ -1,6 +1,11 @@
 <!DOCTYPE HTML>
 <html>
 <head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+    
+<title>Mary's task planner</title>
+
 <link rel="stylesheet" href="https://cdn.webix.com/edge/webix.css" type="text/css"> 
 <script src="https://cdn.webix.com/edge/webix.js" type="text/javascript"></script> 
 <style>
@@ -28,59 +33,159 @@
 </style>
 </head>
 <body>
+<div id="taskItem" style="display: none">
+    <div class='todayCheckbox'>{common.today()}</div>
+    <div class='taskName'>#name#</div>
+    <div class='detailsButton'>{common.details()}</div>
+    <div class='endDate'>#end#</div>
+</div>
 <script type="text/javascript" charset="utf-8">
 webix.protoUI({
     name: "taskList"
 }, webix.ui.list, webix.ActiveContent);
 
-webix.ui({
+
+function taskDetails() {
+    var id = this.config.$masterId;
+    var task = $$("listView").getItem(id);
+    $$("formView").setValues(task);
+    $$("formView").show();
+}
+
+function taskTodayChange(task) {
+    webix.ajax().post("today-change", task, {
+        error: function(text) {
+            webix.message("Ошибка при обновлении статуса: " + text);
+            task.today = !task.today;
+            $$("listView").updateItem(task.id, task);
+        }
+    });
+}
+
+function taskCheckbox() {
+    var id = this.config.$masterId;
+    var task = $$("listView").getItem(id);
+    taskTodayChange(task);
+}
+
+function taskClick(id) {
+    var task = $$("listView").getItem(id);
+    task.today = !task.today;
+    $$("listView").updateItem(task.id, task);
+    taskTodayChange(task);
+}
+
+function taskCreate() {
+    var newItem = {
+        "created": "Сегодня",
+        "size": 1,
+        "done": 0,
+        "plan": 1,
+        "mode": "workdays",
+        "today": false,
+        "new_item": true,
+    };
+    $$("formView").setValues(newItem);
+    $$("formView").show();
+}
+
+function taskFormCancel() {
+    $$("views").back();
+}
+
+function taskFormSave() {
+    var curTask = $$("formView").getValues();
+    $$("views").showProgress({
+        type:"icon",
+        delay:3000
+    });
+    webix.ajax().post("save-task", curTask, {
+        error: function(text) {
+            webix.message("Ошибка при сохранении: " + text);
+            $$("views").hideProgress();
+        },
+        success: function(text, data) {
+            var savedTask = data.json();
+            if (curTask.new_item) {
+                $$("listView").add(savedTask);
+            } else {
+                if (curTask.id != savedTask.id) {
+                    var list = $$("listView");
+                    $$("listView").data.changeId(curTask.id, savedTask.id);
+                }
+                $$("listView").updateItem(savedTask.id, savedTask);
+            }
+            $$("views").back();
+            $$("views").hideProgress();
+        }
+    });
+}
+
+var ui = {
     id:"views",
     cells:[
-        {
-            id: "listView",
-            view: "taskList",
-            select: false,
-            url: "task-list",
-            activeContent: {
-                today: {
-                    view: "checkbox",
-                    width: 30,
-                    click: function() {
-                        //TODO: send change to server
+        { rows: [
+            {
+                id: "listView",
+                view: "taskList",
+                select: false,
+                url: "task-list",
+                activeContent: {
+                    today: {
+                        view: "checkbox",
+                        width: 30,
+                        click: taskCheckbox
+                    },
+                    details: {
+                        view: "icon",
+                        icon: "angle-right",
+                        width: 50,
+                        click: taskDetails                    
                     }
                 },
-                details: {
-                    view: "icon",
-                    icon: "angle-right",
-                    width: 50,
-                    click: function(id, e) {
-                        var item_id = $$("listView").locate(e);
-                        $$("listView").select(item_id);
-                        $$('formView').show();
-                    }
+                click: taskClick,
+                type: {
+                    template: "html->taskItem",
+                    height: 65,
                 }
             },
-            template: "<div class='todayCheckbox'>{common.today()}</div><div class='taskName'>#name#</div><div class='detailsButton'>{common.details()}</div><div class='endDate'>#end#</div>",
-            type: {
-                height: 65
+            { 
+                view: "button", 
+                value: "Создать", 
+                type: "form", 
+                height: 50,
+                click: taskCreate
             }
-        },
+        ] },
         {
             id: "formView",
             view: "form",
-            scroll: false,
+            scroll: true,
+            //TODO: on change update estimates
             elements: [ 
                 { 
                     view: "text", 
                     label: "Название", 
-                    labelWidth: 120,
                     labelAlign: "right",
                     name: "name",
                 },
                 {
+                    view: "text",
+                    label: "Начало",
+                    labelAlign: "right",
+                    name: "created",
+                    readonly: true
+                },
+                {
+                    view: "text",
+                    label: "Конец",
+                    labelAlign: "right",
+                    name: "end",
+                    readonly: true
+                },
+                {
                     view: "counter",
-                    label: "Объем работы",
-                    labelWidth: 120,
+                    label: "Объем",
                     labelAlign: "right",
                     name: "size",
                     step: 1,
@@ -88,8 +193,7 @@ webix.ui({
                 },
                 {
                     view: "counter",
-                    label: "План на день",
-                    labelWidth: 120,
+                    label: "План",
                     labelAlign: "right",
                     name: "plan",
                     step: 1,
@@ -97,8 +201,7 @@ webix.ui({
                 },
                 {
                     view: "counter",
-                    label: "Готовность",
-                    labelWidth: 120,
+                    label: "Готово",
                     labelAlign: "right",
                     name: "done",
                     step: 1,
@@ -106,13 +209,12 @@ webix.ui({
                 },
                 {
                     view: "segmented",
-                    label: "Режим работы",
-                    labelWidth: 120,
+                    label: "Режим",
                     labelAlign: "right",
                     options: [
                         { id: "workdays", value: "Рабочие" },
                         { id: "holidays", value: "Выходные" },
-                        { id: "everyday", value: "Каждый день" },
+                        { id: "everyday", value: "Ежедневно" },
                     ],
                     name: "mode",
                 },
@@ -123,22 +225,14 @@ webix.ui({
                             view: "button", 
                             value: "Отмена",
                             height: 50,
-                            click: function() {
-                                $$("listView").unselect();
-                                $$("views").back();
-                            }
+                            click: taskFormCancel
                         },
                         { 
                             view: "button", 
                             value: "Сохранить", 
                             type: "form", 
                             height: 50,
-                            click: function() {
-                                $$("formView").save();
-                                $$("listView").unselect();
-                                //TODO: reload data
-                                $$("views").back();
-                            }
+                            click: taskFormSave
                         }
                     ]
                 },
@@ -146,16 +240,14 @@ webix.ui({
             ]
         },
     ]
+};
+
+webix.ready(function() {
+    webix.ui.fullScreen();
+    webix.ui(ui);
+    webix.extend($$("views"), webix.ProgressBar); 
+    webix.history.track("views", "listView");
 });
-
-/*
- binds Form with List:
- - selected item loaded in Form,
- - updating data after form saving
-*/
-$$('formView').bind($$('listView'));
-webix.history.track("views", "listView");
-
 </script>
 </body>
 </html>
