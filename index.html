@@ -34,10 +34,10 @@
 </head>
 <body>
 <div id="taskItem" style="display: none">
-    <div class='todayCheckbox'>{common.today()}</div>
-    <div class='taskName'>#name#</div>
+    <div class='todayCheckbox'>{common.Today()}</div>
+    <div class='taskName'>#Name#</div>
     <div class='detailsButton'>{common.details()}</div>
-    <div class='endDate'>#end#</div>
+    <div class='endDate'>#End#</div>
 </div>
 <script type="text/javascript" charset="utf-8">
 webix.protoUI({
@@ -53,10 +53,16 @@ function taskDetails() {
 }
 
 function taskTodayChange(task) {
-    webix.ajax().post("today-change", task, {
+    //Normalize boolean value for Go
+    if (task.Today)
+        task.Today = true;
+    else
+        task.Today = false;
+
+    webix.ajax().post("today-change", JSON.stringify(task), {
         error: function(text) {
             webix.message("Ошибка при обновлении статуса: " + text);
-            task.today = !task.today;
+            task.Today = !task.Today;
             $$("listView").updateItem(task.id, task);
         }
     });
@@ -70,20 +76,20 @@ function taskCheckbox() {
 
 function taskClick(id) {
     var task = $$("listView").getItem(id);
-    task.today = !task.today;
+    task.Today = !task.Today;
     $$("listView").updateItem(task.id, task);
     taskTodayChange(task);
 }
 
 function taskCreate() {
     var newItem = {
-        "created": "Сегодня",
-        "size": 1,
-        "done": 0,
-        "plan": 1,
-        "mode": "workdays",
-        "today": false,
-        "new_item": true,
+        "Created": "Сегодня",
+        "Size": 1,
+        "Done": 0,
+        "Plan": 1,
+        "Mode": "Workdays",
+        "Today": false,
+        "NewItem": true,
     };
     $$("formView").setValues(newItem);
     $$("formView").show();
@@ -97,16 +103,17 @@ function taskFormSave() {
     var curTask = $$("formView").getValues();
     $$("views").showProgress({
         type:"icon",
-        delay:3000
+        delay:3000,
+        hide: true
     });
-    webix.ajax().post("save-task", curTask, {
+    webix.ajax().post("save-task", JSON.stringify(curTask), {
         error: function(text) {
             webix.message("Ошибка при сохранении: " + text);
             $$("views").hideProgress();
         },
         success: function(text, data) {
             var savedTask = data.json();
-            if (curTask.new_item) {
+            if (curTask.NewItem) {
                 $$("listView").add(savedTask);
             } else {
                 if (curTask.id != savedTask.id) {
@@ -131,7 +138,7 @@ var ui = {
                 select: false,
                 url: "task-list",
                 activeContent: {
-                    today: {
+                    Today: {
                         view: "checkbox",
                         width: 30,
                         click: taskCheckbox
@@ -167,27 +174,27 @@ var ui = {
                     view: "text", 
                     label: "Название", 
                     labelAlign: "right",
-                    name: "name",
+                    name: "Name",
                 },
                 {
                     view: "text",
                     label: "Начало",
                     labelAlign: "right",
-                    name: "created",
+                    name: "Created",
                     readonly: true
                 },
                 {
                     view: "text",
                     label: "Конец",
                     labelAlign: "right",
-                    name: "end",
+                    name: "End",
                     readonly: true
                 },
                 {
                     view: "counter",
                     label: "Объем",
                     labelAlign: "right",
-                    name: "size",
+                    name: "Size",
                     step: 1,
                     min: 1,
                 },
@@ -195,7 +202,7 @@ var ui = {
                     view: "counter",
                     label: "План",
                     labelAlign: "right",
-                    name: "plan",
+                    name: "Plan",
                     step: 1,
                     min: 1,
                 },
@@ -203,7 +210,7 @@ var ui = {
                     view: "counter",
                     label: "Готово",
                     labelAlign: "right",
-                    name: "done",
+                    name: "Done",
                     step: 1,
                     min: 0,
                 },
@@ -212,11 +219,11 @@ var ui = {
                     label: "Режим",
                     labelAlign: "right",
                     options: [
-                        { id: "workdays", value: "Рабочие" },
-                        { id: "holidays", value: "Выходные" },
-                        { id: "everyday", value: "Ежедневно" },
+                        { id: "Workdays", value: "Рабочие" },
+                        { id: "Holidays", value: "Выходные" },
+                        { id: "Everyday", value: "Ежедневно" },
                     ],
-                    name: "mode",
+                    name: "Mode",
                 },
                 { 
                     margin: 5, 
