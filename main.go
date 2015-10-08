@@ -33,7 +33,7 @@ func (mode WorkMode) MarshalJSON() ([]byte, error) {
 }
 
 func (mode *WorkMode) UnmarshalJSON(data []byte) error {
-	str := string(data[1:len(data)-1])
+	str := string(data[1 : len(data)-1])
 	switch str {
 	case Everyday.String():
 		*mode = Everyday
@@ -87,6 +87,7 @@ type Task struct {
 	Plan    float64
 	Mode    WorkMode
 	Today   bool
+	NewItem bool `json:",omitempty"`
 }
 
 const DateFormat = "2006-01-02"
@@ -121,7 +122,7 @@ func taskList(w http.ResponseWriter, req *http.Request) {
 		modeClause.WriteString("t.mode = ")
 		modeClause.WriteString(strconv.Itoa(int(mode)))
 	}
-	
+
 	query := `
 SELECT task_id, name, created, size, total_done, plan, mode, 
        (date(last_time) = date("now") and last_done > 0) today
@@ -169,6 +170,15 @@ func saveTask(w http.ResponseWriter, req *http.Request) {
 	if user == "" {
 		return
 	}
+
+	var task Task
+	err := json.NewDecoder(req.Body).Decode(&task)
+	if err != nil {
+		http.Error(w, "Error while parsing request body", http.StatusBadRequest)
+		log.Print(err)
+		return
+	}
+
 }
 
 func todayChange(w http.ResponseWriter, req *http.Request) {
@@ -211,7 +221,7 @@ WHERE t.task_id = ? AND t.user = ?`
 		tx.Rollback()
 		return
 	}
-	
+
 	if task.Today != (lastDone <= 0) {
 		http.Error(w, "Invalid task state", http.StatusConflict)
 		tx.Rollback()
