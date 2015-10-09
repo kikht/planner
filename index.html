@@ -44,6 +44,17 @@ webix.protoUI({
     name: "taskList"
 }, webix.ui.list, webix.ActiveContent);
 
+function taskUpdate(curTask, savedTask) {
+    if (curTask.NewItem) {
+        $$("listView").add(savedTask);
+    } else {
+        if (curTask.id != savedTask.id) {
+            var list = $$("listView");
+            $$("listView").data.changeId(curTask.id, savedTask.id);
+        }
+        $$("listView").updateItem(savedTask.id, savedTask);
+    }
+}
 
 function taskDetails() {
     var id = this.config.$masterId;
@@ -58,12 +69,22 @@ function taskTodayChange(task) {
         task.Today = true;
     else
         task.Today = false;
-
+    
+    $$("views").showProgress({
+        type:"icon",
+        delay:3000,
+        hide: true
+    });
     webix.ajax().post("today-change", JSON.stringify(task), {
         error: function(text) {
             webix.message("Ошибка при обновлении статуса: " + text);
-            task.Today = !task.Today;
             $$("listView").updateItem(task.id, task);
+            $$("views").hideProgress();
+        },
+        success: function(text, data) {
+            var savedTask = data.json();
+            taskUpdate(task, savedTask);
+            $$("views").hideProgress();
         }
     });
 }
@@ -113,15 +134,7 @@ function taskFormSave() {
         },
         success: function(text, data) {
             var savedTask = data.json();
-            if (curTask.NewItem) {
-                $$("listView").add(savedTask);
-            } else {
-                if (curTask.id != savedTask.id) {
-                    var list = $$("listView");
-                    $$("listView").data.changeId(curTask.id, savedTask.id);
-                }
-                $$("listView").updateItem(savedTask.id, savedTask);
-            }
+            taskUpdate(curTask, savedTask);
             $$("views").back();
             $$("views").hideProgress();
         }

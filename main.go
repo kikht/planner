@@ -25,7 +25,7 @@ const (
 	Holidays
 
 	WorkModeNum
-	FirstWorkMode = Everyday
+	WorkModeFirst = Everyday
 )
 
 func (mode WorkMode) MarshalJSON() ([]byte, error) {
@@ -69,7 +69,7 @@ func dayMatchesMode(day time.Time, mode WorkMode) bool {
 func todayModes() []WorkMode {
 	res := make([]WorkMode, 0, WorkModeNum)
 	today := time.Now()
-	for mode := FirstWorkMode; mode < WorkModeNum; mode++ {
+	for mode := WorkModeFirst; mode < WorkModeNum; mode++ {
 		if dayMatchesMode(today, mode) {
 			res = append(res, mode)
 		}
@@ -78,7 +78,7 @@ func todayModes() []WorkMode {
 }
 
 type Task struct {
-	Id      int `json:"id"`
+	Id      int64 `json:"id"`
 	Name    string
 	Created string
 	End     string
@@ -130,7 +130,7 @@ FROM tasks t
 WHERE t.user = ?
   AND (` + modeClause.String() + `)
   AND (total_done < size OR today > 0)
-ORDER BY name;`
+ORDER BY name`
 
 	rows, err := database.Query(query, user)
 	if err != nil {
@@ -143,7 +143,7 @@ ORDER BY name;`
 	var result []Task
 	for rows.Next() {
 		var task Task
-		var created, end time.Time
+		var created time.Time
 		if err := rows.Scan(&task.Id, &task.Name, &created, &task.Size,
 			&task.Done, &task.Plan, &task.Mode, &task.Today); err != nil {
 
@@ -153,9 +153,8 @@ ORDER BY name;`
 			return
 		}
 
-		end = task.getPlannedEnd()
 		task.Created = created.Format(DateFormat)
-		task.End = end.Format(DateFormat)
+		task.End = task.getPlannedEnd().Format(DateFormat)
 		result = append(result, task)
 	}
 
@@ -179,6 +178,98 @@ func saveTask(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	//TODO: verify task data
+	if task.Mode < WorkModeFirst || task.Mode >= WorkModeNum ||
+		task.Plan <= 0 || task.Size <= 0 {
+		http.Error(w, "Invalid task data", http.StatusBadRequest)
+		return
+	}
+
+	tx, err := database.Begin()
+	if err != nil {
+		http.Error(w, "Error while queriyng database",
+			http.StatusInternalServerError)
+		log.Print(err)
+		return
+	}
+
+	var done float64
+	if task.NewItem {
+		created := time.Now()
+		res, err := tx.Exec(`INSERT INTO tasks( 
+			user, created, name, size, plan, mode ) VALUES( ?, ?, ?, ?, ?, ? )`,
+			user, created, task.Name, task.Size, task.Plan, task.Mode)
+		if err != nil {
+			http.Error(w, "Error while queriyng database",
+				http.StatusInternalServerError)
+			log.Print(err)
+			tx.Rollback()
+			return
+		}
+		task.Id, err = res.LastInsertId()
+		if err != nil {
+			http.Error(w, "Error while queriyng database",
+				http.StatusInternalServerError)
+			log.Print(err)
+			tx.Rollback()
+			return
+		}
+		task.NewItem = false
+		task.Created = created.Format(DateFormat)
+		done = task.Done
+	} else {
+		var oldDone float64
+		err := tx.QueryRow(
+			"SELECT total_done FROM tasks WHERE task_id = ? AND user = ?",
+			task.Id, user).Scan(&oldDone)
+		if err != nil {
+			http.Error(w, "Task not found", http.StatusNotFound)
+			if err != sql.ErrNoRows {
+				log.Print(err)
+			}
+			tx.Rollback()
+			return
+		}
+		_, err = tx.Exec(`UPDATE tasks SET name = ?, size = ?, plan = ?, 
+			mode = ? WHERE task_id = ?`,
+			task.Name, task.Size, task.Plan, task.Mode, task.Id)
+		if err != nil {
+			http.Error(w, "Error while queriyng database",
+				http.StatusInternalServerError)
+			log.Print(err)
+			tx.Rollback()
+			return
+		}
+		done = task.Done - oldDone
+	}
+
+	if done != 0 {
+		_, err = tx.Exec(
+			"INSERT INTO task_history( task_id, done ) VALUES( ?, ? )",
+			task.Id, done)
+		if err != nil {
+			http.Error(w, "Error while queriyng database",
+				http.StatusInternalServerError)
+			log.Print(err)
+			tx.Rollback()
+			return
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Error while queriyng database",
+			http.StatusInternalServerError)
+		log.Print(err)
+		return
+	}
+
+	task.Today = done > 0
+	task.End = task.getPlannedEnd().Format(DateFormat)
+	err = json.NewEncoder(w).Encode(task)
+	if err != nil {
+		log.Print(err)
+	}
 }
 
 func todayChange(w http.ResponseWriter, req *http.Request) {
@@ -214,7 +305,7 @@ WHERE t.task_id = ? AND t.user = ?`
 	err = tx.QueryRow(query, task.Id, user).Scan(
 		&task.Plan, &task.Done, &delta, &lastDone)
 	if err != nil {
-		http.Error(w, "Task not found", http.StatusForbidden)
+		http.Error(w, "Task not found", http.StatusNotFound)
 		if err != sql.ErrNoRows {
 			log.Print(err)
 		}
@@ -222,6 +313,7 @@ WHERE t.task_id = ? AND t.user = ?`
 		return
 	}
 
+	log.Printf("state: today %v, lastDone: %v", task.Today, lastDone)
 	if task.Today != (lastDone <= 0) {
 		http.Error(w, "Invalid task state", http.StatusConflict)
 		tx.Rollback()
@@ -237,10 +329,12 @@ WHERE t.task_id = ? AND t.user = ?`
 		} else {
 			done = -task.Plan
 		}
+		if done < -task.Done {
+			done = -task.Done
+		}
 	}
-	task.Done += done
 
-	_, err = tx.Exec("INSERT INTO task_history( task_id, done ) VALUES( ?, ? );",
+	_, err = tx.Exec("INSERT INTO task_history( task_id, done ) VALUES( ?, ? )",
 		task.Id, done)
 	if err != nil {
 		http.Error(w, "Error while queriyng database",
@@ -250,8 +344,20 @@ WHERE t.task_id = ? AND t.user = ?`
 		return
 	}
 
-	tx.Commit()
-	w.WriteHeader(http.StatusOK)
+	err = tx.Commit()
+	if err != nil {
+		http.Error(w, "Error while queriyng database",
+			http.StatusInternalServerError)
+		log.Print(err)
+		return
+	}
+
+	task.Done += done
+	task.End = task.getPlannedEnd().Format(DateFormat)
+	err = json.NewEncoder(w).Encode(task)
+	if err != nil {
+		log.Print(err)
+	}
 }
 
 func currentUser(w http.ResponseWriter, req *http.Request) string {
@@ -259,9 +365,7 @@ func currentUser(w http.ResponseWriter, req *http.Request) string {
 	return "test"
 }
 
-var (
-	database *sql.DB
-)
+var database *sql.DB
 
 func main() {
 	var err error

@@ -20,4 +20,4 @@ CREATE TABLE task_history (
 CREATE TRIGGER tasks_update AFTER INSERT ON task_history FOR EACH ROW BEGIN 
     UPDATE tasks SET total_done = total_done + NEW.done, last_done = NEW.done, 
 		last_time = NEW.time WHERE task_id = NEW.task_id;
-END
+END;
