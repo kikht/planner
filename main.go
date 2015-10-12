@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	_ "github.com/mattn/go-sqlite3"
+	"gitlab.ict.sbras.ru/kikht/gohttpserv"
 	"log"
 	"net"
 	"net/http"
@@ -386,7 +387,7 @@ func main() {
 		}
 	})
 
-	startServer()
+	gohttpserv.Serve(nil)	
 }
 
 //TODO: move server initialization code to separate package
