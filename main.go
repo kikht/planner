@@ -126,7 +126,7 @@ func taskList(w http.ResponseWriter, req *http.Request) {
 
 	query := `
 SELECT task_id, name, created, size, total_done, plan, mode, 
-       (date(last_time) = date("now") and last_done > 0) today
+       COALESCE((date(last_time) = date("now") and last_done > 0), 0) today
 FROM tasks t
 WHERE t.user = ?
   AND (` + modeClause.String() + `)
